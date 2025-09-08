@@ -9,6 +9,7 @@ class SummaryQueries():
         self.SUMMARY_BY_DATE = self.get_query('summary_by_date')
         self.SUMMARY_BY_REGION = self.get_query('summary_by_region')
         self.SUMMARY_BY_ECONOMIC_ACT = self.get_query('summary_by_economic_activity')
+        self.NEWS_REPORT = self.get_query('news_report')
     
     def get_query(self, query_filename: str):
         try:
@@ -23,3 +24,4 @@ class SummaryQueries():
             error_msg = f'Error desconocido al intentar leer el archivo {query_filename} {str(e)}'
             logging.error(error_msg)
             raise Exception(error_msg, 'SQE002', 500)
+

@@ -31,3 +31,14 @@ def summary_report(req: func.HttpRequest) -> func.HttpResponse:
         status_code=201,
         mimetype='application/json'
     )
+    
+@app.route(route='news_report', methods=['GET'])
+def news_report(req: func.HttpRequest) -> func.HttpResponse:
+    
+    report_manager = ReportManager()
+    report_data = report_manager.execute_news_report()
+    return func.HttpResponse(
+        body=json.dumps(report_data, ensure_ascii=False),
+        status_code=201,
+        mimetype='application/json'
+    )
