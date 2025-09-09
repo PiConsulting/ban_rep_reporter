@@ -1,7 +1,10 @@
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 from io import BytesIO
 import smtplib
+import ssl
 import pandas as pd
 from datetime import datetime
 from app.services.azure_services.azure_sql_services import SqlService
@@ -9,7 +12,11 @@ from app.services.azure_services.azure_storage_services import StorageAccount
 from app.core.config import (
     AZURE_STORAGE_CONNECTION_STRING, 
     AZURE_STORAGE_CONTAINER,
-    AZURE_STORAGE_DOWNLOAD_PATH
+    TLS_PORT,
+    SMTP_SERVER,
+    SMTP_USER,
+    SMTP_PASSWORD,
+    RECEIVER_EMAILS,
 )
 from app.core.constants import SummaryQueries
 import logging
@@ -51,9 +58,18 @@ class ReportManager():
         sq = SummaryQueries()
         
         df = self.get_report(sq.NEWS_REPORT, 'reporte_sample')
-        df['Fecha de publicación'] = df['Fecha de publicación'].dt.strftime('%d-%m-%Y %h:%M:%s')
-        
-        self.send_report()
+        df['Fecha de publicación'] = df['Fecha de publicación'].dt.strftime('%d-%m-%Y %H:%M:%S')
+
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, index=False, sheet_name='Reporte')
+        output.seek(0)
+        logging.info(type(output))
+        self.send_report(
+            f'Reporte de Noticias al {datetime.now().isoformat()}',
+            'reporte.xlsx', 
+            output
+        )
         
         return {
             'news_report': df.to_dict(orient='records')
@@ -89,8 +105,46 @@ class ReportManager():
         return df
     
 
-    def send_report(self):
+    def send_report(self, subject: str, filename: str, attach: BytesIO):
+
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = SMTP_USER
+        message["To"] = RECEIVER_EMAILS
+
+        html = """\
+        <html>
+        <body>
+            <p>Aqui va el resumen, creo...<br>
+            ¯\_(ツ)_/¯
+            </p>
+        </body>
+        </html>
+        """
+
+        body = MIMEText(html, "html")
+        message.attach(body)
+
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(attach.getvalue())
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            f"attachment; filename={filename}",
+        )
+        message.attach(part)
         
-        # Aqui va algo
-        # ಠ_ಠ
-        pass
+        try:
+            context = ssl.create_default_context()
+            with smtplib.SMTP(SMTP_SERVER, TLS_PORT) as server:
+                server.ehlo()
+                server.starttls(context=context)
+                server.ehlo()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.sendmail(SMTP_USER, RECEIVER_EMAILS, message.as_string())
+
+            logging.info("Correo enviado correctamente")
+        except Exception as e:
+            error_msg = f'Error al intentar enviar el correo {str(e)}'
+            logging.error(error_msg)
+            raise Exception(error_msg)
