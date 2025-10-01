@@ -29,50 +29,51 @@ class ReportManager():
         self.db_service = SqlService()
         self.storage_service = StorageAccount(AZURE_STORAGE_CONNECTION_STRING, AZURE_STORAGE_CONTAINER)
 
-    def execute_summary_report(self, execution_datetime: datetime = datetime.now()) -> dict:
+    def execute_summary_report(self, execution_datetime: datetime = datetime.now()) -> dict[pd.DataFrame]:
         execution_datetime_str = execution_datetime.strftime('%Y-%m-%d %H:%M:%S')
-        params = (execution_datetime,)
+        params = (execution_datetime_str,)
         sq = SummaryQueries()
 
         # To-Do: Añadir el parametro a la query cuando se tenga data constante 
-        df_by_date = self.get_report(sq.SUMMARY_BY_DATE)
-        df_by_region = self.get_report(sq.SUMMARY_BY_REGION)
-        df_by_economic_act = self.get_report(sq.SUMMARY_BY_ECONOMIC_ACT)
+        df_by_date = self.get_report(sq.SUMMARY_BY_DATE, params)
+        df_by_region = self.get_report(sq.SUMMARY_BY_REGION, params)
+        df_by_economic_act = self.get_report(sq.SUMMARY_BY_ECONOMIC_ACT, params)
         
-        df_by_date['Fecha de ejecución'] = df_by_date['Fecha de ejecución'].dt.strftime('%d-%m-%Y %h:%M:%s')
-        df_by_economic_act['Fecha de ejecución'] = df_by_economic_act['Fecha de ejecución'].dt.strftime('%d-%m-%Y %h:%M:%s')
+        if not df_by_date.empty:
+            df_by_date['Fecha de ejecución'] = df_by_date['Fecha de ejecución'].dt.strftime('%d-%m-%Y %h:%M:%s')
         
-        self.send_report()
-
         result = {
-            'summary_by_date': df_by_date.to_dict(orient='records'),
-            'summary_by_region': df_by_region.to_dict(orient='records'),
-            'summaty_by_eco': df_by_economic_act.to_dict(orient='records')
+            'summary_by_date': df_by_date,
+            'summary_by_region': df_by_region,
+            'summaty_by_eco': df_by_economic_act
         }
         return result
 
 
     def execute_news_report(self, execution_datetime: datetime = datetime.now()):
         execution_datetime_str = execution_datetime.strftime('%Y-%m-%d %H:%M:%S')
-        params = (execution_datetime,)
+        params = (execution_datetime_str,)
         sq = SummaryQueries()
         
-        df = self.get_report(sq.NEWS_REPORT, 'reporte_sample')
-        df['Fecha de publicación'] = df['Fecha de publicación'].dt.strftime('%d-%m-%Y %H:%M:%S')
+        df = self.get_report(sq.NEWS_REPORT, params)
+        if not df.empty:
+            df['Fecha de publicación'] = df['Fecha de publicación'].dt.strftime('%d-%m-%Y %H:%M:%S')
 
         output = BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='Reporte')
         output.seek(0)
-        logging.info(type(output))
+        today_date = datetime.now()
+        report_date = today_date.isoformat()
         self.send_report(
-            f'Reporte de Noticias al {datetime.now().isoformat()}',
-            'reporte.xlsx', 
-            output
+            f'Reporte de Noticias al {today_date.strftime("%d-%M-%Y")}',
+            f'reporte_noticias_{report_date}.xlsx', 
+            output,
+            execution_datetime
         )
         
         return {
-            'news_report': df.to_dict(orient='records')
+            'success': True
         }
 
 
@@ -90,7 +91,7 @@ class ReportManager():
         """
         exec_cursor = None
         if params:
-            exec_cursor = self.db_service.execute_query(query)
+            exec_cursor = self.db_service.execute_query(query, params)
         else:
             exec_cursor = self.db_service.execute_query(query)
         
@@ -105,20 +106,29 @@ class ReportManager():
         return df
     
 
-    def send_report(self, subject: str, filename: str, attach: BytesIO):
+    def send_report(self, subject: str, filename: str, attach: BytesIO, execution_datetime: datetime):
 
+        receiver_emails_list = RECEIVER_EMAILS.split(',')
+        
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
         message["From"] = SMTP_USER
         message["To"] = RECEIVER_EMAILS
+        
+        summary_reports = self.execute_summary_report(execution_datetime)
 
-        html = """\
+        html = f"""\
         <html>
-        <body>
-            <p>Aqui va el resumen, creo...<br>
-            ¯\_(ツ)_/¯
-            </p>
-        </body>
+            <body>
+                <h3>Resumen por Fecha</h3>
+                {summary_reports['summary_by_date'].to_html(index=False)}
+                <br/>
+                <h3>Resumen por Actividad Económica</h3>
+                {summary_reports['summaty_by_eco'].to_html(index=False)}
+                <br/>
+                <h3>Resumen por Cobertura Geográfica</h3>
+                {summary_reports['summary_by_region'].to_html(index=False)}
+            </body>
         </html>
         """
 
@@ -141,7 +151,8 @@ class ReportManager():
                 server.starttls(context=context)
                 server.ehlo()
                 server.login(SMTP_USER, SMTP_PASSWORD)
-                server.sendmail(SMTP_USER, RECEIVER_EMAILS, message.as_string())
+                # Pasa la lista directamente a sendmail
+                server.sendmail(SMTP_USER, receiver_emails_list, message.as_string())
 
             logging.info("Correo enviado correctamente")
         except Exception as e:
