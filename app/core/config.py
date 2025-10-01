@@ -19,3 +19,10 @@ AZURE_DB_SERVER = os.getenv('AZURE_DB_SERVER', '')
 AZURE_DB_NAME = os.getenv('AZURE_DB_NAME', '')
 AZURE_DB_USER = os.getenv('AZURE_DB_USER', '')
 AZURE_DB_PASS = os.getenv('AZURE_DB_PASS', '')
+
+# SMTP VALUES
+TLS_PORT = os.getenv('TLS_PORT', '')
+SMTP_SERVER = os.getenv('SMTP_SERVER', '')
+SMTP_USER = os.getenv('SMTP_USER', '')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+RECEIVER_EMAILS = os.getenv('RECEIVER_EMAILS', '')

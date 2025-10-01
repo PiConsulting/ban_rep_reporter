@@ -1,5 +1,4 @@
-import pyodbc, struct
-from azure import identity
+import pyodbc
 from app.core.config import (
     AZURE_DB_DRIVER,
     AZURE_DB_SERVER,
