@@ -1,5 +1,8 @@
 SELECT
      TOP (100)
+        YEAR(exe.publish_date) AS 'Año',
+        MONTH(exe.publish_date) AS 'Mes',
+        DAY(exe.publish_date) AS 'Día',
         exe.publish_date AS 'Fecha de publicación',
         exe.economic_activity AS 'Actividad económica',
         exe.new_url AS 'Enlace Web',
@@ -14,4 +17,5 @@ FROM
     executions as exe
 WHERE
     exe.status = 'success'
---     execution_datetime >= ?
+AND
+    exe.execution_datetime >= ?
