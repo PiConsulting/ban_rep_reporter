@@ -1,5 +1,4 @@
 SELECT
-     TOP (100)
         YEAR(exe.publish_date) AS 'Año',
         MONTH(exe.publish_date) AS 'Mes',
         DAY(exe.publish_date) AS 'Día',
